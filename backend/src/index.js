@@ -10,63 +10,64 @@ dotenv.config();
 
 const app = express();
 
-// ================= SEGURANÇA =================
+// ================= SECURITY HEADERS =================
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+  })
+);
 
-// Helmet (proteção headers)
-app.use(helmet({
-  crossOriginResourcePolicy: false
-}));
-
-// CORS seguro (ajustar domínios em produção)
+// ================= CORS CONFIG (PRODUÇÃO SEGURA) =================
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:8080',
-  'https://multimoney.onrender.com'
+  'https://multimoney.onrender.com',
 ];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Não permitido por CORS'));
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('CORS bloqueado'));
+      }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+  })
+);
 
-// ================= MIDDLEWARES =================
+// ================= PARSE JSON =================
 app.use(express.json());
 
-// Logs (dev vs prod)
-app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+// ================= LOGS =================
+app.use(
+  morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev')
+);
 
-// ================= RATE LIMIT =================
-
-// Limite geral
+// ================= RATE LIMIT GLOBAL =================
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   message: {
-    error: 'Muitas requisições. Tente novamente mais tarde.'
-  }
+    error: 'Muitas requisições. Tente novamente mais tarde.',
+  },
 });
 
-// Limite mais restrito para auth (anti brute-force)
+// ================= RATE LIMIT AUTH =================
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
   message: {
-    error: 'Muitas tentativas de login. Tente novamente mais tarde.'
-  }
+    error: 'Muitas tentativas de login. Tente novamente mais tarde.',
+  },
 });
 
-// Aplicar rate limit
 app.use('/api/', globalLimiter);
 
-// ================= IMPORTAÇÃO DE ROTAS =================
+// ================= ROUTES IMPORT =================
 const authRoutes = require('./routes/authRoutes');
 const walletRoutes = require('./routes/walletRoutes');
 const transferRoutes = require('./routes/transferRoutes');
@@ -74,28 +75,26 @@ const taxiRoutes = require('./routes/taxiRoutes');
 const loanRoutes = require('./routes/loanRoutes');
 const pointsRoutes = require('./routes/pointsRoutes');
 
-// ================= ROTAS BASE =================
-
-// Root
+// ================= BASE ROUTES =================
 app.get('/', (req, res) => {
   res.status(200).json({
-    app: "MULTIMONEY API",
-    status: "Operacional",
-    region: "Angola",
-    version: "1.0.0"
+    app: 'MULTIMONEY API',
+    status: 'Operacional',
+    region: 'Angola',
+    version: '1.0.0',
   });
 });
 
-// Healthcheck (produção)
+// HEALTH CHECK
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'ok',
     uptime: process.uptime(),
-    timestamp: Date.now()
+    timestamp: Date.now(),
   });
 });
 
-// ================= ROTAS PRINCIPAIS =================
+// ================= API ROUTES =================
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/transfer', transferRoutes);
@@ -106,19 +105,20 @@ app.use('/api/points', pointsRoutes);
 // ================= 404 HANDLER =================
 app.use((req, res) => {
   res.status(404).json({
-    error: 'Rota não encontrada'
+    error: 'Rota não encontrada',
   });
 });
 
-// ================= ERROR HANDLER =================
+// ================= GLOBAL ERROR HANDLER =================
 app.use((err, req, res, next) => {
-  console.error('🔥 ERROR:', err.stack);
+  console.error('🔥 SERVER ERROR:', err.stack);
 
   res.status(err.status || 500).json({
     error: 'Erro interno no servidor',
-    message: process.env.NODE_ENV === 'development'
-      ? err.message
-      : 'Algo deu errado.'
+    message:
+      process.env.NODE_ENV === 'development'
+        ? err.message
+        : 'Algo deu errado.',
   });
 });
 
